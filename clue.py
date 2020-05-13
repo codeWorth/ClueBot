@@ -44,159 +44,7 @@ cards_list = [
 
 names_list = ["Liam", "Emma", "Noah", "Olivia", "William", "Ava", "James", "Isabella", "Oliver", "Sophia", "Benjamin", "Charlotte", "Elijah", "Mia", "Lucas", "Amelia", "Mason", "Harper", "Logan", "Evely"]
 
-class Game:
-	def __init__(self, num_players, cards, names):
-		self.num_players = num_players
-		self.turn_index = 0
-		self.round_index = 0
-		self.player_index = 0
-		self.cards = cards
-
-		self.suspect = random.choice(list(filter(lambda card: card.type_ == Card.SUSPECT, self.cards)))
-		self.weapon = random.choice(list(filter(lambda card: card.type_ == Card.WEAPON, self.cards)))
-		self.room = random.choice(list(filter(lambda card: card.type_ == Card.ROOM, self.cards)))
-
-		self.cards_subset = cards.copy()
-		self.cards_subset.remove(self.suspect)
-		self.cards_subset.remove(self.weapon)
-		self.cards_subset.remove(self.room)
-
-		self.player_hands = []
-		for i in range(num_players):
-			self.player_hands.append([])
-
-		count = len(self.cards_subset)
-		for i in range(count):
-			j = random.randint(0, count - i - 1) # cards_subset: card index
-			k = i % num_players # player_hands: player index
-			self.player_hands[k].append(self.cards_subset.pop(j))
-
-		self.players = []
-		uids = list(range(num_players))
-		for i, hand in enumerate(self.player_hands):
-			self.players.append(AIPlayer(random.choice(names), hand, i, uids, cards))
-
-		for i, hand in enumerate(self.player_hands):
-			print(i, list(map(lambda card: card.name, hand)))
-
-	def play(self):
-		while True:
-			if not(self.turn()):
-				return
-
-			print("Round index =", self.round_index)
-			self.round_index += 1
-
-			# cont = input("Type y to continue playing: ").lower()
-			# if cont != "y":
-			# 	return
-
-	def turn(self):
-		current_player = self.players[self.player_index]
-
-		roll = random.randint(1, 6)
-		# print("Rolled a", roll)
-
-		room = current_player.move(roll)
-
-		if type(room) is list:
-			if self.suspect in room and self.weapon in room and self.room in room:
-				print("You're right!")
-				for player in self.players:
-					player.print_info()
-			else:
-				assert False, "Wrong answer!"
-			return False
-
-		suspect, weapon = current_player.propose_crime(room)
-		for player in self.players:
-			if player != current_player:
-				player.crime_proposed(current_player.uid, suspect, weapon, room, self.turn_index)
-
-		for i in range(1, self.num_players):
-			self.turn_index += 1
-			respond_player = self.players[(self.player_index + i) % self.num_players]
-
-			choices = list(filter(lambda card: card == room or card == suspect or card == weapon, respond_player.hand))
-			if len(choices) == 0:
-				for player in self.players:
-					if player != respond_player:
-						player.crime_undenied(respond_player.uid, suspect, weapon, room, self.turn_index)
-			else:
-				show_card = choices[0]
-				if len(choices) > 1:
-					show_card = respond_player.expose_card(choices)
-				current_player.card_shown(respond_player.uid, show_card, self.turn_index)
-				for player in self.players:
-					if player != respond_player and player != current_player:
-						player.crime_denied(respond_player.uid, suspect, weapon, room, self.turn_index)
-				break
-
-		self.turn_index += 1
-		self.player_index = (self.player_index + 1) % self.num_players
-		return True
-
-class Player:
-	def __init__(self, name, hand, uid, uids, cards):
-		self.name = name
-		self.hand = hand
-		self.uid = uid
-		self.uids = uids.copy() # uids of other players
-		self.uids.remove(uid)
-		self.cards = cards
-
-	def expose_card(self, choices):
-		print("\nChoose card index:")
-		for i, choice in enumerate(choices):
-			print("\t", (i+1), choice.name)
-		index = int(input("Index: "))
-		print("Will reveal", choices[index-1].name)
-
-		return choices[index-1]
-
-	def crime_proposed(self, uid, suspect, weapon, room, turn_index):
-		print(uid, "proposed:", suspect.name, "with the", weapon.name, "in the", room.name)
-
-	def crime_undenied(self, uid, suspect, weapon, room, turn_index): # `uid` of player who could not deny crime
-		print(uid, "could not deny:", suspect.name, "with the", weapon.name, "in the", room.name)
-
-	def crime_denied(self, uid, suspect, weapon, room, turn_index): # `uid` of player who could deny crime
-		print(uid, "denied:", suspect.name, "with the", weapon.name, "in the", room.name)
-
-	def card_shown(self, uid, card, turn_index):
-		print("You,", self.uid, ", were shown", card.name)
-
-	def move(self, steps):
-		rooms = list(filter(lambda card: card.type_ == Card.ROOM, self.cards))
-
-		print("\nChoose room index:")
-		for i, room in enumerate(rooms):
-			print("\t", (i+1), room.name)
-		index = int(input("Index: "))
-		print("Going to", rooms[index-1].name)
-
-		return rooms[index-1]
-
-	def propose_crime(self, room):
-		suspects = list(filter(lambda card: card.type_ == Card.SUSPECT, self.cards))
-		weapons = list(filter(lambda card: card.type_ == Card.WEAPON, self.cards))
-
-		print("\nChoose suspect index:")
-		for i, sus in enumerate(suspects):
-			print("\t", (i+1), sus.name)
-		index = int(input("Index: "))
-		suspect = suspects[index-1]
-
-		print("\nChoose weapon index:")
-		for i, wep in enumerate(weapons):
-			print("\t", (i+1), wep.name)
-		index = int(input("Index: "))
-		weapon = weapons[index-1]
-
-		print(suspect.name, "with the", weapon.name, "in the", room.name)
-		return (suspect, weapon)
-
-class AIPlayer(Player):
+class AIPlayer:
 	UNKNOWN = -1
 	NOT_OWNED = 1
 
@@ -279,20 +127,42 @@ class AIPlayer(Player):
 
 		if smart:
 			print("~~~~", self.uid, "determined that", owner_uid, "owns", owned_card.name)
-			assert owned_card in game.players[owner_uid].hand
 		else:
 			print("----", self.uid, "determined that", owner_uid, "owns", owned_card.name)
 
 	def check_won(self):
-		unowned_suspects = reduce(lambda count, e: count + 1 if (e[0].type_ == Card.SUSPECT and e[1] == AIPlayer.UNKNOWN) else count, self.known.items(), 0) # count unknown suspects
-		unowned_weapons = reduce(lambda count, e: count + 1 if (e[0].type_ == Card.WEAPON and e[1] == AIPlayer.UNKNOWN) else count, self.known.items(), 0) # count unknown weapons
-		unowned_rooms = reduce(lambda count, e: count + 1 if (e[0].type_ == Card.ROOM and e[1] == AIPlayer.UNKNOWN) else count, self.known.items(), 0) # count unknown rooms
+		# determine any cards known from denied by all players
+		unowned_suspects = None
+		unowned_weapons = None
+		unowned_rooms = None
 
-		if (unowned_suspects == 0 or unowned_weapons == 0 or unowned_rooms == 0): # if any of these are zero, something has gone seriously wrong
+		for card in self.cards:
+			if self.known[card] == AIPlayer.UNKNOWN:
+				correct = True
+				for uid in self.uids:
+					if self.not_owned[uid][card] == AIPlayer.UNKNOWN:
+						correct = False
+						break
+				if correct:
+					if card.type_ == Card.SUSPECT:
+						unowned_suspects = [card]
+					elif card.type_ == Card.WEAPON:
+						unowned_weapons = [card]
+					elif card.type_ == Card.ROOM:
+						unowned_rooms = [card]
+
+		if unowned_suspects == None:
+			unowned_suspects = list(map(lambda e: e[0], filter(lambda e: e[0].type_ == Card.SUSPECT and e[1] == AIPlayer.UNKNOWN, self.known.items()))) # unknown suspects
+		if unowned_weapons == None:
+			unowned_weapons = list(map(lambda e: e[0], filter(lambda e: e[0].type_ == Card.WEAPON and e[1] == AIPlayer.UNKNOWN, self.known.items()))) # unknown weapons
+		if unowned_rooms == None:
+			unowned_rooms = list(map(lambda e: e[0], filter(lambda e: e[0].type_ == Card.ROOM and e[1] == AIPlayer.UNKNOWN, self.known.items()))) # unknown rooms
+
+		if (len(unowned_suspects) == 0 or len(unowned_weapons) == 0 or len(unowned_rooms) == 0): # if any of these are zero, something has gone seriously wrong
 			print("Major logical error occured:", unowned_suspects, unowned_weapons, unowned_rooms)
 			assert self.uid != 0
-		elif (unowned_suspects == 1 and unowned_weapons == 1 and unowned_rooms == 1): # if all of these are one, then we know what the crime was
-			self.winning_cards = list(map(lambda e: e[0], filter(lambda e: e[1] == AIPlayer.UNKNOWN, self.known.items())))
+		elif (len(unowned_suspects) == 1 and len(unowned_weapons) == 1 and len(unowned_rooms) == 1): # if all of these are one, then we know what the crime was
+			self.winning_cards = unowned_suspects + unowned_weapons + unowned_rooms
 			self.won = True
 			print("\t", self.name, "will win! The cards are: ", list(map(lambda card: card.name, self.winning_cards)))
 
@@ -312,6 +182,8 @@ class AIPlayer(Player):
 		pass
 
 	def crime_undenied(self, uid, suspect, weapon, room, turn_index): # `uid` of player who could not deny crime
+		if uid == self.uid:
+				return
 		# print(uid, "could not deny:", suspect.name, "with the", weapon.name, "in the", room.name)
 
 		self.not_owned[uid][suspect] = AIPlayer.NOT_OWNED
@@ -325,6 +197,8 @@ class AIPlayer(Player):
 		self.check_won()
 
 	def crime_denied(self, uid, suspect, weapon, room, turn_index): # `uid` of player who could deny crime
+		if uid == self.uid:
+			return
 		# print(uid, "denied:", suspect.name, "with the", weapon.name, "in the", room.name)
 		possiblities = []
 
@@ -350,29 +224,9 @@ class AIPlayer(Player):
 
 	def card_shown(self, uid, card, turn_index):
 		# print("You,", self.uid, ", were shown", card.name)
+		if uid == self.uid:
+			return
 		self.handle_card_owned(uid, card, turn_index, smart=False)
-
-	def expose_card(self, choices):
-		return random.choice(choices)
-
-	def move(self, steps):
-		if self.won:
-			print(self.uid, self.name, "won! Winning cards:", list(map(lambda card: card.name, self.winning_cards)))
-			return self.winning_cards
-
-		rooms = list(filter(lambda card: card.type_ == Card.ROOM, self.cards))
-		return random.choice(rooms)
-
-	def propose_crime(self, room):
-		suspects = list(filter(lambda card: card.type_ == Card.SUSPECT, self.cards))
-		weapons = list(filter(lambda card: card.type_ == Card.WEAPON, self.cards))
-		return (random.choice(suspects), random.choice(weapons))
-		# best_score = 0
-		# best_suspect = None
-		# for suspect in suspects:
-		# 	score = 0
-		# 	if self.known[suspects] == UNKNOWN:
-
 
 	def print_info(self):
 		print("\n----------------Info of " + str(self.uid) + "----------------")
@@ -397,5 +251,85 @@ class AIPlayer(Player):
 			
 			print(ln)
 
-game = Game(4, cards_list, names_list)
-game.play()
+rooms_list = list(filter(lambda card: card.type_ == Card.ROOM, cards_list))
+suspects_list = list(filter(lambda card: card.type_ == Card.SUSPECT, cards_list))
+weapons_list = list(filter(lambda card: card.type_ == Card.WEAPON, cards_list))
+
+n_players = int(input("Enter number of players: "))
+player_names = {0: "Me"}
+for i in range(1, n_players):
+	player_names[i] = input("Player " + str(i + 1) + " name: ")
+
+print("\nChoose card indecies:")
+for i, card in enumerate(cards_list):
+	print("\t", (i+1), card.name)
+
+hand = []
+while True:
+	index = input("\tIndex: ")
+	if index == "":
+		break
+	else:
+		hand.append(cards_list[int(index) - 1])
+
+print("Hand:", list(map(lambda card: card.name, hand)))
+
+player = AIPlayer(player_names[0], hand, 0, list(range(n_players)), cards_list)
+turn_index = 0
+need_crime = True
+suspect = None
+weapon = None
+room = None
+proposer_uid = -1
+while True:
+	turn_index += 1
+	print("Ids:\n\t", player_names.items())
+
+	if need_crime:
+		print("Suspects:")
+		for i, card in enumerate(suspects_list):
+			print("\t", (i+1), card.name)
+		print("Weapons:")
+		for i, card in enumerate(weapons_list):
+			print("\t", (i+1), card.name)
+		print("Rooms:")
+		for i, card in enumerate(rooms_list):
+			print("\t", (i+1), card.name)
+
+		print("Crime proposal:")
+		proposer_uid = int(input("\tPlayer id: "))
+
+		if proposer_uid == 0 and player.won:
+			print("Winning cards:", player.winning_cards)
+
+		suspect = suspects_list[int(input("\tSuspect id: ")) - 1]
+		weapon = weapons_list[int(input("\tWeapon id: ")) - 1]
+		room = rooms_list[int(input("\tRoom id: ")) - 1]
+
+		print("Crime proposed by", player_names[proposer_uid], "=", suspect.name, "with the", weapon.name, "in the", room.name)
+		if proposer_uid != 0:
+			player.crime_proposed(proposer_uid, suspect, weapon, room, turn_index)
+		need_crime = False
+	else:
+		print("Crime response:")
+		uid = int(input("\tPlayer id (-1 = end): "))
+
+		if uid == -1:
+			need_crime = True
+		else:
+			response_type = int(input("\tDo not deny = 0, Deny = 1: "))
+			if response_type == 1:
+				need_crime = True
+				if proposer_uid == 0:
+					print("Cards:")
+					for i, card in enumerate(cards_list):
+						print("\t", (i+1), card.name)
+					card = cards_list[int(input("\tShown card id: ")) - 1]
+					print("Showed", player_names[proposer_uid], card.name)
+					player.card_shown(uid, card, turn_index)
+				else:
+					player.crime_denied(uid, suspect, weapon, room, turn_index)
+			else:
+				player.crime_undenied(uid, suspect, weapon, room, turn_index)
+
+	player.print_info()
